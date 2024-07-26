@@ -17,6 +17,7 @@ use cwe_checker_lib::utils::read_config_file;
 use std::collections::{BTreeSet, HashSet};
 use std::convert::From;
 use std::path::PathBuf;
+use std::time::{SystemTime};
 
 #[derive(ValueEnum, Clone, Debug, Copy)]
 /// Selects which kind of debug output is displayed.
@@ -154,6 +155,8 @@ fn check_file_existence(file_path: &str) -> Result<String, String> {
 
 /// Run the cwe_checker with Ghidra as its backend.
 fn run_with_ghidra(args: &CmdlineArgs) -> Result<(), Error> {
+    let start = SystemTime::now();
+
     let debug_settings = args.into();
     let mut modules = cwe_checker_lib::get_modules();
     if args.module_versions {
@@ -165,6 +168,7 @@ fn run_with_ghidra(args: &CmdlineArgs) -> Result<(), Error> {
         return Ok(());
     }
 
+    println!("{:?}\t [cwe_checker] Loading configuration", start.elapsed()); // TODO: real logging
     // Get the bare metal configuration file if it is provided
     let bare_metal_config_opt: Option<BareMetalConfig> =
         args.bare_metal_config.as_ref().map(|config_path| {
@@ -173,8 +177,10 @@ fn run_with_ghidra(args: &CmdlineArgs) -> Result<(), Error> {
                 .expect("Parsing of the bare metal configuration file failed")
         });
 
+    println!("{:?}\t [cwe_checker] Loading binary", start.elapsed()); // TODO: real logging
     let binary_file_path = PathBuf::from(args.binary.clone().unwrap());
 
+    println!("{:?}\t [cwe_checker] Disassembling binary", start.elapsed()); // TODO: real logging
     let (binary, project, mut all_logs) =
         disassemble_binary(&binary_file_path, bare_metal_config_opt, &debug_settings)?;
 
@@ -199,6 +205,7 @@ fn run_with_ghidra(args: &CmdlineArgs) -> Result<(), Error> {
         read_config_file("config.json")?
     };
 
+    println!("{:?}\t [cwe_checker] Generate the control flow graph of the program", start.elapsed()); // TODO: real logging
     // Generate the control flow graph of the program
     let (control_flow_graph, mut logs_graph) = graph::get_program_cfg_with_logs(&project.program);
     all_logs.append(&mut logs_graph);
@@ -219,6 +226,7 @@ fn run_with_ghidra(args: &CmdlineArgs) -> Result<(), Error> {
             .iter()
             .any(|module| modules_depending_on_pointer_inference.contains(&module.name));
 
+    println!("{:?}\t [cwe_checker] Compute function signatures if required", start.elapsed()); // TODO: real logging
     // Compute function signatures if required
     let function_signatures = if pi_analysis_needed {
         let (function_signatures, mut logs) = analysis_results.compute_function_signatures();
@@ -235,6 +243,8 @@ fn run_with_ghidra(args: &CmdlineArgs) -> Result<(), Error> {
         None
     };
     let analysis_results = analysis_results.with_pointer_inference(pi_analysis_results.as_ref());
+
+    println!("{:?}\t [cwe_checker] Compute string abstraction analysis if required", start.elapsed()); // TODO: real logging
     // Compute string abstraction analysis if required
     let string_abstraction_results =
         if string_abstraction_needed {
@@ -261,9 +271,12 @@ fn run_with_ghidra(args: &CmdlineArgs) -> Result<(), Error> {
         return Ok(());
     }
 
+    println!("{:?}\t [cwe_checker] Executing the modules...", start.elapsed()); // TODO: real logging
+    // TODO: what ?? ça exécute tout, et en cas de partial juste on affiche pas ????
     // Execute the modules and collect their logs and CWE-warnings.
     let mut all_cwes = Vec::new();
     for module in modules {
+        println!("{:?}\t [cwe_checker] Executing the modules - {}", start.elapsed(), module.name); // TODO: real logging
         let (mut logs, mut cwes) = (module.run)(&analysis_results, &config[&module.name]);
         all_logs.append(&mut logs);
         all_cwes.append(&mut cwes);
