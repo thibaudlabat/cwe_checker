@@ -2,6 +2,7 @@
 
 use crate::prelude::*;
 use std::{collections::BTreeMap, thread::JoinHandle};
+use std::time::SystemTime;
 
 /// A CWE warning message.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord, Default)]
@@ -376,4 +377,14 @@ impl LogThread {
         let cwes = collected_cwes.into_values().collect();
         (logs, cwes)
     }
+}
+
+static mut START: SystemTime = SystemTime::UNIX_EPOCH;// = SystemTime::now();
+pub fn init_logging_timer(){
+    unsafe { START = SystemTime::now(); }
+    timed_logging("Program start");
+}
+pub fn timed_logging<S: std::fmt::Display>(arg: S) {
+    // TODO: link to already existing logging system ?
+    unsafe { println!("{:?}\t [cwe_checker] {}", START.elapsed(), arg); }
 }

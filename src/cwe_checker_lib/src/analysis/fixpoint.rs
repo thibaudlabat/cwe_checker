@@ -39,6 +39,7 @@ use fnv::FnvHashMap;
 use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
 use petgraph::visit::EdgeRef;
 use std::collections::{BTreeMap, BTreeSet};
+use crate::utils::log::timed_logging;
 
 /// The context of a fixpoint computation.
 ///
@@ -205,17 +206,27 @@ impl<T: Context> Computation<T> {
     /// Each node will be visited at most max_steps times.
     /// If a node does not stabilize after max_steps visits, the end result will not be a fixpoint but only an intermediate result of a fixpoint computation.
     pub fn compute_with_max_steps(&mut self, max_steps: u64) {
+        timed_logging("Fixpoint: calling compute_with_max_steps");
+        let mut max_seen_step = 0;
         let mut steps = vec![0; self.fp_context.get_graph().node_count()];
         let mut non_stabilized_nodes = BTreeSet::new();
         while let Some(priority) = self.worklist.iter().next_back().cloned() {
             let priority = self.worklist.take(&priority).unwrap();
             let node = self.priority_to_node_list[priority];
-            if steps[node.index()] < max_steps {
+            if steps[node.index()] < 100000 { // TODO : remettre max_steps
                 steps[node.index()] += 1;
                 self.update_node(node);
             } else {
                 non_stabilized_nodes.insert(priority);
+                timed_logging(format!("Fixpoint: Non-stabilized nodes after {} steps.",max_steps));
             }
+            if steps[node.index()] > max_seen_step
+            {
+                max_seen_step = steps[node.index()];
+                timed_logging(format!("Fixpoint:  max seen step {}",max_seen_step));
+            }
+
+
         }
         // After the algorithm finished, the new worklist is the list of non-stabilized nodes
         self.worklist = non_stabilized_nodes;
